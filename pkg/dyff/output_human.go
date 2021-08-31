@@ -199,11 +199,11 @@ func (report *HumanReport) generateHumanDetailOutputRemoval(detail Detail) (stri
 	switch detail.From.Kind {
 	case yamlv3.SequenceNode:
 		text := text.Plural(len(detail.From.Content), "list entry", "list entries")
-		output.WriteString(yellow("%c %s removed:\n", REMOVAL, formatStringWithOptions(text, report.LineFormat)))
+		output.WriteString(yellow("%c %s removed:\n", REMOVAL, text))
 
 	case yamlv3.MappingNode:
 		text := text.Plural(len(detail.From.Content)/2, "map entry", "map entries")
-		output.WriteString(yellow("%c %s removed:\n", REMOVAL, formatStringWithOptions(text, report.LineFormat)))
+		output.WriteString(yellow("%c %s removed:\n", REMOVAL, text))
 	}
 
 	ytbx.RestructureObject(detail.From)
@@ -272,8 +272,8 @@ func (report *HumanReport) generateHumanDetailOutputModification(detail Detail) 
 			return "", err
 		}
 
-		output.WriteString(red("%s", createStringWithPrefix("  - ", strings.TrimRight(from, "\n"))))
-		output.WriteString(green("%s", createStringWithPrefix("  + ", strings.TrimRight(to, "\n"))))
+		output.WriteString(red("%s", createStringWithPrefix("  - ", strings.TrimRight(formatStringWithOptions(from, report.LineFormat), "\n"))))
+		output.WriteString(green("%s", createStringWithPrefix("  + ", strings.TrimRight(formatStringWithOptions(to, report.LineFormat), "\n"))))
 	}
 
 	return output.String(), nil
@@ -361,7 +361,8 @@ func (report *HumanReport) writeStringDiff(output stringWriter, from string, to 
 
 func formatStringWithOptions(s string, f HumanReportLineFormat) string {
 	if f.TrimAllLines {
-		s, trimmed := trimTo(s, f.TrimAllLinesMaxChars)
+		mod, trimmed := trimTo(s, f.TrimAllLinesMaxChars)
+		s = mod
 		if len(f.TrimAppendSuffix) > 0 && trimmed {
 			s += f.TrimAppendSuffix
 		}
