@@ -188,7 +188,7 @@ func (report *HumanReport) generateHumanDetailOutputAddition(detail Detail) (str
 		return "", err
 	}
 
-	report.writeTextBlocks(&output, 2, yamlOutput)
+	report.writeTextBlocks(&output, 2, formatStringWithOptions(yamlOutput, report.LineFormat))
 
 	return output.String(), nil
 }
@@ -199,11 +199,11 @@ func (report *HumanReport) generateHumanDetailOutputRemoval(detail Detail) (stri
 	switch detail.From.Kind {
 	case yamlv3.SequenceNode:
 		text := text.Plural(len(detail.From.Content), "list entry", "list entries")
-		output.WriteString(yellow("%c %s removed:\n", REMOVAL, text))
+		output.WriteString(yellow("%c %s removed:\n", REMOVAL, formatStringWithOptions(text, report.LineFormat)))
 
 	case yamlv3.MappingNode:
 		text := text.Plural(len(detail.From.Content)/2, "map entry", "map entries")
-		output.WriteString(yellow("%c %s removed:\n", REMOVAL, text))
+		output.WriteString(yellow("%c %s removed:\n", REMOVAL, formatStringWithOptions(text, report.LineFormat)))
 	}
 
 	ytbx.RestructureObject(detail.From)
@@ -212,7 +212,7 @@ func (report *HumanReport) generateHumanDetailOutputRemoval(detail Detail) (stri
 		return "", err
 	}
 
-	report.writeTextBlocks(&output, 2, yamlOutput)
+	report.writeTextBlocks(&output, 2, formatStringWithOptions(yamlOutput, report.LineFormat))
 
 	return output.String(), nil
 }
@@ -361,8 +361,8 @@ func (report *HumanReport) writeStringDiff(output stringWriter, from string, to 
 
 func formatStringWithOptions(s string, f HumanReportLineFormat) string {
 	if f.TrimAllLines {
-		s = trimTo(s, f.TrimAllLinesMaxChars)
-		if len(f.TrimAppendSuffix) > 0 {
+		s, trimmed := trimTo(s, f.TrimAllLinesMaxChars)
+		if len(f.TrimAppendSuffix) > 0 && trimmed {
 			s += f.TrimAppendSuffix
 		}
 	}
@@ -372,12 +372,12 @@ func formatStringWithOptions(s string, f HumanReportLineFormat) string {
 	return s
 }
 
-func trimTo(s string, maxChars uint32) string {
+func trimTo(s string, maxChars uint32) (string, bool) {
 	if utf8.RuneCountInString(s) > int(maxChars) {
 		rs := []rune(s)
-		return string(rs[:maxChars])
+		return string(rs[:maxChars]), true
 	}
-	return s
+	return s, false
 }
 
 func obfuscateTo(s string, startChar uint32) string {
