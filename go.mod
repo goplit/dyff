@@ -1,4 +1,4 @@
-module github.com/homeport/dyff
+module github.com/goplit/dyff
 
 go 1.16
 
