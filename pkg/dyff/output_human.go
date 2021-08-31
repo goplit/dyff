@@ -48,6 +48,14 @@ type stringWriter interface {
 	WriteString(s string) (int, error)
 }
 
+type HumanReportLineFormat struct {
+	TrimAllLines         bool
+	TrimAllLinesMaxChars uint32
+	TrimAppendSuffix     string
+	ObfuscateAllLines    bool
+	ObfuscateStartChar   uint32
+}
+
 // HumanReport is a reporter with human readable output in mind
 type HumanReport struct {
 	NoTableStyle         bool
@@ -55,7 +63,7 @@ type HumanReport struct {
 	OmitHeader           bool
 	UseGoPatchPaths      bool
 	MinorChangeThreshold float64
-
+	LineFormat           HumanReportLineFormat
 	Report
 }
 
@@ -335,20 +343,52 @@ func (report *HumanReport) writeStringDiff(output stringWriter, from string, to 
 	} else if isMultiLine(from, to) {
 		output.WriteString(yellow("%c value change\n", MODIFICATION))
 		report.writeTextBlocks(output, 0,
-			red("%s", createStringWithPrefix("  - ", from)),
-			green("%s", createStringWithPrefix("  + ", to)),
+			red("%s", createStringWithPrefix("  - ", formatStringWithOptions(from, report.LineFormat))),
+			green("%s", createStringWithPrefix("  + ", formatStringWithOptions(to, report.LineFormat))),
 		)
 	} else if isMinorChange(from, to, report.MinorChangeThreshold) {
 		output.WriteString(yellow("%c value change\n", MODIFICATION))
 		diffs := diffmatchpatch.New().DiffMain(from, to, false)
-		output.WriteString(highlightRemovals(diffs))
-		output.WriteString(highlightAdditions(diffs))
+		output.WriteString(highlightRemovals(diffs, report.LineFormat))
+		output.WriteString(highlightAdditions(diffs, report.LineFormat))
 
 	} else {
 		output.WriteString(yellow("%c value change\n", MODIFICATION))
-		output.WriteString(red("%s", createStringWithPrefix("  - ", from)))
-		output.WriteString(green("%s", createStringWithPrefix("  + ", to)))
+		output.WriteString(red("%s", createStringWithPrefix("  - ", formatStringWithOptions(from, report.LineFormat))))
+		output.WriteString(green("%s", createStringWithPrefix("  + ", formatStringWithOptions(to, report.LineFormat))))
 	}
+}
+
+func formatStringWithOptions(s string, f HumanReportLineFormat) string {
+	if f.TrimAllLines {
+		s = trimTo(s, f.TrimAllLinesMaxChars)
+		if len(f.TrimAppendSuffix) > 0 {
+			s += f.TrimAppendSuffix
+		}
+	}
+	if f.ObfuscateAllLines {
+		s = obfuscateTo(s, f.ObfuscateStartChar)
+	}
+	return s
+}
+
+func trimTo(s string, maxChars uint32) string {
+	if utf8.RuneCountInString(s) > int(maxChars) {
+		rs := []rune(s)
+		return string(rs[:maxChars])
+	}
+	return s
+}
+
+func obfuscateTo(s string, startChar uint32) string {
+	if utf8.RuneCountInString(s) > int(startChar) {
+		rs := []rune(s)
+		for i := int(startChar); i < len(rs); i++ {
+			rs[i] = '*'
+		}
+		return string(rs)
+	}
+	return s
 }
 
 func (report *HumanReport) highlightByLine(from, to string) string {
@@ -414,17 +454,17 @@ func humanReadableType(node *yamlv3.Node) string {
 	panic(fmt.Errorf("unknown and therefore unsupported kind %v", node.Kind))
 }
 
-func highlightRemovals(diffs []diffmatchpatch.Diff) string {
+func highlightRemovals(diffs []diffmatchpatch.Diff, format HumanReportLineFormat) string {
 	var buf bytes.Buffer
 
 	buf.WriteString(red("  - "))
 	for _, part := range diffs {
 		switch part.Type {
 		case diffmatchpatch.DiffEqual:
-			buf.WriteString(lightred("%s", part.Text))
+			buf.WriteString(lightred("%s", formatStringWithOptions(part.Text, format)))
 
 		case diffmatchpatch.DiffDelete:
-			buf.WriteString(bold("%s", red("%s", part.Text)))
+			buf.WriteString(bold("%s", red("%s", formatStringWithOptions(part.Text, format))))
 		}
 	}
 
@@ -432,17 +472,17 @@ func highlightRemovals(diffs []diffmatchpatch.Diff) string {
 	return buf.String()
 }
 
-func highlightAdditions(diffs []diffmatchpatch.Diff) string {
+func highlightAdditions(diffs []diffmatchpatch.Diff, format HumanReportLineFormat) string {
 	var buf bytes.Buffer
 
 	buf.WriteString(green("  + "))
 	for _, part := range diffs {
 		switch part.Type {
 		case diffmatchpatch.DiffEqual:
-			buf.WriteString(lightgreen("%s", part.Text))
+			buf.WriteString(lightgreen("%s", formatStringWithOptions(part.Text, format)))
 
 		case diffmatchpatch.DiffInsert:
-			buf.WriteString(bold("%s", green("%s", part.Text)))
+			buf.WriteString(bold("%s", green("%s", formatStringWithOptions(part.Text, format))))
 		}
 	}
 
